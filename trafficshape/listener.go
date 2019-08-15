@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/zema1/martian/v3/log"
+	"github.com/zema1/martian/log"
 )
 
 // ErrForceClose is an error that communicates the need to close the connection.
