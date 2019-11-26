@@ -17,6 +17,7 @@
 package martiantest
 
 import (
+	"fmt"
 	"net/http"
 	"sync/atomic"
 )
@@ -79,6 +80,7 @@ func (m *Modifier) ResponseFunc(resfunc func(res *http.Response)) {
 
 // ModifyRequest increases the count of requests seen and runs reqfunc if configured.
 func (m *Modifier) ModifyRequest(req *http.Request) error {
+	fmt.Println(req.Method, req.URL.String())
 	atomic.AddInt32(&m.reqcount, 1)
 
 	if m.reqfunc != nil {

@@ -1222,7 +1222,7 @@ func TestHTTPThroughConnectWithMITM(t *testing.T) {
 func TestIntegrationConnectWithoutTLSMITM(t *testing.T) {
 	t.Parallel()
 
-	l, err := net.Listen("tcp", "[::]:0")
+	l, err := net.Listen("tcp", "[::1]:0")
 	if err != nil {
 		t.Fatalf("net.Listen(): got %v, want no error", err)
 	}
@@ -1240,7 +1240,7 @@ func TestIntegrationConnectWithoutTLSMITM(t *testing.T) {
 		t.Fatalf("mitm.NewConfig(): got %v, want no error", err)
 	}
 
-	tl, err := net.Listen("tcp", "[::]:0")
+	tl, err := net.Listen("tcp", "[::1]:0")
 	if err != nil {
 		t.Fatalf("tls.Listen(): got %v, want no error", err)
 	}

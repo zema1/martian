@@ -330,6 +330,11 @@ func (p *Proxy) handleConnectRequest(ctx *Context, req *http.Request, session *S
 		// 22 is the TLS handshake.
 		// https://tools.ietf.org/html/rfc5246#section-6.2.1
 		if b[0] == 22 {
+			// if nonTLSConfig is set, we will mitm the http request in tunnel but do nothing for https request.
+			if p.mitm.IsNonTLSConfig() {
+				brw.Reader.Reset(io.MultiReader(bytes.NewReader(b), bytes.NewReader(buf), conn))
+				goto BuildConnect
+			}
 			// Prepend the previously read data to be read again by
 			// http.ReadRequest.
 			tlsconn := tls.Server(&peekedConn{conn, io.MultiReader(bytes.NewReader(b), bytes.NewReader(buf), conn)}, p.mitm.TLSForHost(req.Host))
@@ -356,6 +361,7 @@ func (p *Proxy) handleConnectRequest(ctx *Context, req *http.Request, session *S
 		return p.handle(ctx, conn, brw)
 	}
 
+BuildConnect:
 	log.Debugf("martian: attempting to establish CONNECT tunnel: %s", req.URL.Host)
 	res, cconn, cerr := p.connect(req)
 	if cerr != nil {
@@ -384,21 +390,24 @@ func (p *Proxy) handleConnectRequest(ctx *Context, req *http.Request, session *S
 	defer res.Body.Close()
 	defer cconn.Close()
 
-	if err := p.resmod.ModifyResponse(res); err != nil {
-		log.Errorf("martian: error modifying CONNECT response: %v", err)
-		proxyutil.Warning(res.Header, err)
-	}
-	if session.Hijacked() {
-		log.Infof("martian: connection hijacked by response modifier")
-		return nil
-	}
+	// if NonTlsConfig enabled, we had already written an 200 response to brw, so skip here.
+	if p.mitm == nil || !p.mitm.IsNonTLSConfig() {
+		if err := p.resmod.ModifyResponse(res); err != nil {
+			log.Errorf("martian: error modifying CONNECT response: %v", err)
+			proxyutil.Warning(res.Header, err)
+		}
+		if session.Hijacked() {
+			log.Infof("martian: connection hijacked by response modifier")
+			return nil
+		}
 
-	res.ContentLength = -1
-	if err := res.Write(brw); err != nil {
-		log.Errorf("martian: got error while writing response back to client: %v", err)
-	}
-	if err := brw.Flush(); err != nil {
-		log.Errorf("martian: got error while flushing response back to client: %v", err)
+		res.ContentLength = -1
+		if err := res.Write(brw); err != nil {
+			log.Errorf("martian: got error while writing response back to client: %v", err)
+		}
+		if err := brw.Flush(); err != nil {
+			log.Errorf("martian: got error while flushing response back to client: %v", err)
+		}
 	}
 
 	cbw := bufio.NewWriter(cconn)
