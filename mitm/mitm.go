@@ -40,9 +40,13 @@ import (
 // bytes (2^(8*20)-1).
 var MaxSerialNumber = big.NewInt(0).SetBytes(bytes.Repeat([]byte{255}, 20))
 
+var errNonTLS = errors.New("can't generate cert when nonTLS config is enabled")
+
 // Config is a set of configuration values that are used to build TLS configs
-// capable of MITM.
+// capable of MITM or build http tunnel directly.
 type Config struct {
+	nonTLS bool
+
 	ca                     *x509.Certificate
 	capriv                 interface{}
 	priv                   *rsa.PrivateKey
@@ -148,6 +152,18 @@ func NewConfig(ca *x509.Certificate, privateKey interface{}) (*Config, error) {
 	}, nil
 }
 
+// NewNonTLSConfig creates a MITM config without TLS handlers,
+// it will mitm the http request and do nothing for https request.
+func NewNonTLSConfig() *Config {
+	return &Config{
+		nonTLS: true,
+	}
+}
+
+func (c *Config) IsNonTLSConfig() bool {
+	return c.nonTLS
+}
+
 // SetValidity sets the validity window around the current time that the
 // certificate is valid for.
 func (c *Config) SetValidity(validity time.Duration) {
@@ -212,6 +228,11 @@ func (c *Config) TLSForHost(hostname string) *tls.Config {
 }
 
 func (c *Config) cert(hostname string) (*tls.Certificate, error) {
+	// if nonTLS enabled, cert method should always return an error
+	if c.nonTLS {
+		return nil, errNonTLS
+	}
+
 	// Remove the port if it exists.
 	host, _, err := net.SplitHostPort(hostname)
 	if err == nil {
